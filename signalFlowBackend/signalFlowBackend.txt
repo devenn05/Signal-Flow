@@ -1,0 +1,444 @@
+================================================
+PROJECT STRUCTURE
+================================================
+./
+    .gitattributes
+    .gitignore
+    Bscript.py
+    HELP.md
+    mvnw
+    mvnw.cmd
+    pom.xml
+    signalFlowBackend.txt
+    .mvn/
+        wrapper/
+            maven-wrapper.properties
+    src/
+        main/
+            java/
+                com/
+                    sw/
+                        signalFlowBackend/
+                            SignalFlowBackendApplication.java
+                            client/
+                                ExchangeClient.java
+                                exchange/
+                                    BinanceClient.java
+                                    BybitClient.java
+                                    MexcClient.java
+                            config/
+                                WebConfig.java
+                            controller/
+                                TestController.java
+                            dto/
+                            entity/
+                            exception/
+                            mapper/
+                            repository/
+                            service/
+            resources/
+                application.properties
+                static/
+                templates/
+        test/
+            java/
+                com/
+                    sw/
+                        signalFlowBackend/
+                            SignalFlowBackendApplicationTests.java
+
+
+================================================
+FILE: pom.xml
+================================================
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.5.10</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.sw</groupId>
+	<artifactId>signalFlowBackend</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>signalFlowBackend</name>
+	<description>Paper Trading project for Spring Boot</description>
+	<url/>
+	<licenses>
+		<license/>
+	</licenses>
+	<developers>
+		<developer/>
+	</developers>
+	<scm>
+		<connection/>
+		<developerConnection/>
+		<tag/>
+		<url/>
+	</scm>
+	<properties>
+		<java.version>17</java.version>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webflux</artifactId>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>
+
+
+================================================
+FILE: src\main\java\com\sw\signalFlowBackend\SignalFlowBackendApplication.java
+================================================
+package com.sw.signalFlowBackend;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class SignalFlowBackendApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(SignalFlowBackendApplication.class, args);
+	}
+
+}
+
+
+================================================
+FILE: src\main\java\com\sw\signalFlowBackend\client\ExchangeClient.java
+================================================
+package com.sw.signalFlowBackend.client;
+
+import reactor.core.publisher.Mono;
+
+import java.math.BigDecimal;
+
+public interface ExchangeClient {
+    Mono<BigDecimal> getPrice(String symbol);
+    String getExchangeName();
+}
+
+
+================================================
+FILE: src\main\java\com\sw\signalFlowBackend\client\exchange\BinanceClient.java
+================================================
+package com.sw.signalFlowBackend.client.exchange;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.sw.signalFlowBackend.client.ExchangeClient;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import java.math.BigDecimal;
+
+@Component
+public class BinanceClient implements ExchangeClient {
+    private final WebClient webClient;
+
+    public BinanceClient(@Qualifier("binanceWebClient") WebClient webClient){
+       this.webClient = webClient;
+    }
+    @Override
+    public Mono<BigDecimal> getPrice(String symbol){
+        try {
+            return webClient.get()
+                    .uri("/api/v3/ticker/price?symbol={symbol}", symbol)
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .map(json -> {
+                        JsonNode priceNode = json.path("price");
+                        if (priceNode.isMissingNode()) {
+                            throw new RuntimeException("Price field missing in Binance response for " + symbol);
+                        }
+                        return new BigDecimal(priceNode.asText());
+                    });
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public String getExchangeName(){
+        return "BINANCE";
+    }
+}
+
+
+================================================
+FILE: src\main\java\com\sw\signalFlowBackend\client\exchange\BybitClient.java
+================================================
+package com.sw.signalFlowBackend.client.exchange;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.sw.signalFlowBackend.client.ExchangeClient;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import java.math.BigDecimal;
+
+@Component
+public class BybitClient implements ExchangeClient {
+    private final WebClient webClient;
+
+    public BybitClient(@Qualifier("bybitWebClient") WebClient webClient){
+        this.webClient = webClient;
+    }
+
+    @Override
+    public Mono<BigDecimal> getPrice(String symbol){
+        try {
+            return webClient.get()
+                    .uri("/v5/market/tickers?category=spot&symbol={symbol}", symbol)
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .map(json -> {
+                        JsonNode listNode = json.path("result").path("list");
+                        if (listNode.isMissingNode() || !listNode.isArray() || listNode.isEmpty()) {
+                            throw new RuntimeException("Bybit data missing for symbol: " + symbol);
+                        }
+                        String lastPrice = listNode.get(0).path("lastPrice").asText();
+                        return new BigDecimal(lastPrice);
+                    });
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public String getExchangeName(){
+        return "BYBIT";
+    }
+}
+
+
+================================================
+FILE: src\main\java\com\sw\signalFlowBackend\client\exchange\MexcClient.java
+================================================
+package com.sw.signalFlowBackend.client.exchange;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.sw.signalFlowBackend.client.ExchangeClient;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import java.math.BigDecimal;
+
+@Component
+public class MexcClient implements ExchangeClient {
+    private final WebClient webClient;
+
+    public MexcClient(@Qualifier("mexcWebClient") WebClient webClient){
+        this.webClient = webClient;
+    }
+
+    @Override
+    public Mono<BigDecimal> getPrice(String symbol){
+        try {
+            return webClient.get()
+                    .uri("/api/v3/ticker/price?symbol={symbol}", symbol)
+                    .retrieve()
+                    .bodyToMono(JsonNode.class)
+                    .map(json -> {
+                        JsonNode priceNode = json.path("price");
+                        if (priceNode.isMissingNode()) {
+                            throw new RuntimeException("MEXC price data missing for: " + symbol);
+                        }
+                        return new BigDecimal(priceNode.asText());
+                    });
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
+    public String getExchangeName(){
+        return "MEXC";
+    }
+}
+
+
+================================================
+FILE: src\main\java\com\sw\signalFlowBackend\config\WebConfig.java
+================================================
+package com.sw.signalFlowBackend.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.reactive.function.client.WebClient;
+
+@Configuration
+public class WebConfig {
+
+    // Centralized URLs
+    public static final String BINANCE_URL = "https://api.binance.com";
+    public static final String MEXC_URL = "https://api.mexc.com";
+    public static final String BYBIT_URL = "https://api.bybit.com";
+
+    @Bean
+    public WebClient binanceWebClient(WebClient.Builder builder) {
+        return builder.baseUrl(BINANCE_URL).build();
+    }
+
+    @Bean
+    public WebClient mexcWebClient(WebClient.Builder builder) {
+        return builder.baseUrl(MEXC_URL).build();
+    }
+
+    @Bean
+    public WebClient bybitWebClient(WebClient.Builder builder) {
+        return builder.baseUrl(BYBIT_URL).build();
+    }
+}
+
+
+================================================
+FILE: src\main\java\com\sw\signalFlowBackend\controller\TestController.java
+================================================
+package com.sw.signalFlowBackend.controller;
+
+import com.sw.signalFlowBackend.client.exchange.BinanceClient;
+import com.sw.signalFlowBackend.client.exchange.BybitClient;
+import com.sw.signalFlowBackend.client.exchange.MexcClient;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
+
+import java.math.BigDecimal;
+
+@RestController
+@RequestMapping("/api/test")
+@RequiredArgsConstructor
+public class TestController {
+
+    private final BinanceClient binanceClient;
+    private final MexcClient mexcClient;
+    private final BybitClient bybitClient;
+
+    @GetMapping("binance/{symbol}")
+    public Mono<BigDecimal> testBinance(@PathVariable String symbol){
+        return binanceClient.getPrice(symbol);
+    }
+
+    @GetMapping("bybit/{symbol}")
+    public Mono<BigDecimal> testBybit(@PathVariable String symbol){
+        return bybitClient.getPrice(symbol);
+    }
+
+    @GetMapping("mexc/{symbol}")
+    public Mono<BigDecimal> testMexc(@PathVariable String symbol){
+        return mexcClient.getPrice(symbol);
+    }
+}
+
+
+================================================
+FILE: src\main\resources\application.properties
+================================================
+spring.application.name=signalFlowBackend
+
+
+================================================
+FILE: src\test\java\com\sw\signalFlowBackend\SignalFlowBackendApplicationTests.java
+================================================
+package com.sw.signalFlowBackend;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class SignalFlowBackendApplicationTests {
+
+	@Test
+	void contextLoads() {
+	}
+
+}
+
+
