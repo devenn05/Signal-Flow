@@ -32,7 +32,7 @@ public class MexcClient implements ExchangeClient {
                         return new BigDecimal(priceNode.asText());
                     });
         } catch (Exception e) {
-            return null;
+            return Mono.empty();
         }
     }
 

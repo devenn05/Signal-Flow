@@ -32,6 +32,7 @@ PROJECT STRUCTURE
                                 TestController.java
                             dto/
                             entity/
+                            enums/
                             exception/
                             mapper/
                             repository/
@@ -129,6 +130,10 @@ FILE: pom.xml
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webflux</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
 		</dependency>
 	</dependencies>
 
@@ -423,6 +428,14 @@ FILE: src\main\resources\application.properties
 ================================================
 spring.application.name=signalFlowBackend
 
+# Database URL, Username, and Password
+# Replace 'localhost:5432' and 'your_db_name' with your actual values
+spring.datasource.url=jdbc:postgresql://localhost:5432/signal_flow
+spring.datasource.username=postgres
+spring.datasource.password=12345678
+
+# The driver is usually inferred, but explicitly defining it is a best practice
+spring.datasource.driver-class-name=org.postgresql.Driver
 
 ================================================
 FILE: src\test\java\com\sw\signalFlowBackend\SignalFlowBackendApplicationTests.java

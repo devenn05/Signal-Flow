@@ -3,6 +3,7 @@ package com.sw.signalFlowBackend.controller;
 import com.sw.signalFlowBackend.client.exchange.BinanceClient;
 import com.sw.signalFlowBackend.client.exchange.BybitClient;
 import com.sw.signalFlowBackend.client.exchange.MexcClient;
+import com.sw.signalFlowBackend.service.PriceAggregatorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -20,6 +21,7 @@ public class TestController {
     private final BinanceClient binanceClient;
     private final MexcClient mexcClient;
     private final BybitClient bybitClient;
+    private final PriceAggregatorService priceAggregatorService;
 
     @GetMapping("binance/{symbol}")
     public Mono<BigDecimal> testBinance(@PathVariable String symbol){
@@ -35,4 +37,7 @@ public class TestController {
     public Mono<BigDecimal> testMexc(@PathVariable String symbol){
         return mexcClient.getPrice(symbol);
     }
+
+    @GetMapping("/smart-price/{symbol}")
+    public Mono<BigDecimal> bestTest(@PathVariable String symbol) { return priceAggregatorService.getBestPrice(symbol);}
 }

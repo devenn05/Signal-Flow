@@ -33,7 +33,7 @@ public class BybitClient implements ExchangeClient {
                         return new BigDecimal(lastPrice);
                     });
         } catch (Exception e) {
-            return null;
+            return Mono.empty();
         }
     }
 
