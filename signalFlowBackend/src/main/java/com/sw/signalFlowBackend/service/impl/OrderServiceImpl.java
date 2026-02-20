@@ -3,6 +3,7 @@ package com.sw.signalFlowBackend.service.impl;
 import com.sw.signalFlowBackend.dto.OrderRequestDto;
 import com.sw.signalFlowBackend.entity.Order;
 import com.sw.signalFlowBackend.entity.User;
+import com.sw.signalFlowBackend.entity.UserAsset;
 import com.sw.signalFlowBackend.enums.OrderSide;
 import com.sw.signalFlowBackend.enums.OrderStatus;
 import com.sw.signalFlowBackend.enums.OrderType;
@@ -19,6 +20,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 
 @Service
 @Slf4j
@@ -28,6 +30,7 @@ public class OrderServiceImpl implements OrderService {
     private PriceAggregatorService priceAggregatorService;
     private OrderRepository orderRepository;
     private UserRepository userRepository;
+    private UserAssetRepository userAssetRepository;
 
     @Override
     public Mono<Order> placeOrder(Long userId, OrderRequestDto orderDto){
@@ -56,19 +59,16 @@ public class OrderServiceImpl implements OrderService {
         User user = userRepository.findById(userId).orElseThrow(()->new RuntimeException("User not found."));
 
         // 2. Calculate the cost
+        BigDecimal quantity = dto.getQuantity();
         BigDecimal cost = executionPrice.multiply(dto.getPrice());
 
-        // C. Validate Balance (Logic depends on BUY or SELL side)
-        // SIMPLE VERSION: We only check USDT balance for BUYs.
-        // For SELLs, we would check Asset balance.
-
-        if (dto.getOrderSide() == OrderSide.BUY){
-            if (user.getBalance().compareTo(cost) < 0){
-                throw new RuntimeException("Insufficient balance. Required: " + cost + ", Available: " + user.getBalance());
-            }
-            user.setBalance(user.getBalance().subtract(cost));
+        // 3. Validate Funds & Update Balances (The Swap)
+        // 2. Validate Funds & Update Balances (The Swap)
+        if (dto.getOrderSide() == OrderSide.BUY) {
+            handleBuySide(user, dto.getSymbol(), quantity, cost, executionPrice);
+        } else {
+            handleSellSide(user, dto.getSymbol(), quantity, cost);
         }
-        userRepository.save(user);
 
         Order order = Order.builder()
                 .user(user)
@@ -88,6 +88,61 @@ public class OrderServiceImpl implements OrderService {
                 .build();
 
         return orderRepository.save(order);
+    }
 
+    private void handleBuySide(User user, String symbol, BigDecimal qty, BigDecimal totalCost, BigDecimal price){
+        // A. Check USDT Balance
+        if (user.getBalance().compareTo(totalCost) < 0){
+            throw new RuntimeException("Insufficient funds. Required: " + totalCost + ", Available: " + user.getBalance());
+        }
+
+        // B. Deduct USDT
+        user.setBalance(user.getBalance().subtract(totalCost));
+        userRepository.save(user);
+
+        // C. Update/Create Asset (User receives Coin)
+        UserAsset asset = userAssetRepository.findByUserIdAndSymbol(user.getId(), symbol)
+                .orElse(UserAsset.builder()
+                        .user(user)
+                        .symbol(symbol)
+                        .amount(BigDecimal.ZERO)
+                        .averageBuyPrice(BigDecimal.ZERO)
+                        .build());
+
+
+        // D. Calculate Weighted Average Price:
+        // ((OldQty * OldPrice) + (NewQty * NewPrice)) / (OldQty + NewQty)
+        BigDecimal currentTotalValue = asset.getAmount().multiply(asset.getAverageBuyPrice());
+        BigDecimal newTotalValue = currentTotalValue.add(totalCost);
+        BigDecimal newAmount = asset.getAmount().add(qty);
+
+        // Avoid division by zero (shouldn't happen on add, but good practice)
+        if (newAmount.compareTo(BigDecimal.ZERO) > 0) {
+            asset.setAverageBuyPrice(newTotalValue.divide(newAmount, 8, RoundingMode.HALF_UP));
+        }
+        asset.setAmount(newAmount);
+        userAssetRepository.save(asset);
+    }
+
+    private void handleSellSide(User user, String symbol, BigDecimal qty, BigDecimal totalProceeds) {
+        // A. Check Asset Balance
+        UserAsset asset = userAssetRepository.findByUserIdAndSymbol(user.getId(), symbol)
+                .orElseThrow(() -> new RuntimeException("Insufficient asset balance. You do not own " + symbol));
+
+        if (asset.getAmount().compareTo(qty) < 0) {
+            throw new RuntimeException("Insufficient " + symbol + ". Owned: " + asset.getAmount() + ", Selling: " + qty);
+        }
+
+        // B. Deduct Asset
+        asset.setAmount(asset.getAmount().subtract(qty));
+        // Note: Average Buy Price does NOT change on Sell in standard accounting
+        if (asset.getAmount().compareTo(BigDecimal.ZERO) == 0) {
+            // Optional: You could delete the row, but keeping it with 0 amount helps history
+        }
+        userAssetRepository.save(asset);
+
+        // C. Add USDT to Balance
+        user.setBalance(user.getBalance().add(totalProceeds));
+        userRepository.save(user);
     }
 }
