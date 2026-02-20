@@ -40,6 +40,9 @@ public class Order {
     @Column(nullable = false)
     private OrderType orderType;
 
+    @Column(nullable = false, precision = 19, scale = 8)
+    private BigDecimal quantity;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private OrderStatus status;
