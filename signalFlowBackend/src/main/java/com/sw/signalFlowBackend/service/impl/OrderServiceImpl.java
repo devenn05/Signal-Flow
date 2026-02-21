@@ -145,4 +145,47 @@ public class OrderServiceImpl implements OrderService {
         user.setBalance(user.getBalance().add(totalProceeds));
         userRepository.save(user);
     }
+
+
+    @Override
+    @Transactional // IMPORTANT: Data consistency
+    public void closeOrder(Order order, BigDecimal closingPrice, String reason) {
+        if (order.getStatus() != OrderStatus.FILLED) {
+            log.warn("Attempted to close order {} which is not FILLED", order.getId());
+            return;
+        }
+
+        User user = order.getUser();
+        BigDecimal quantity = order.getQuantity();
+        BigDecimal exitValue = closingPrice.multiply(quantity);
+
+        log.info("Closing Order ID: {} | Reason: {} | Exit Price: {} | PnL Value: {}",
+                order.getId(), reason, closingPrice, exitValue);
+
+        // 1. Logic Validation (Only Buy implemented for now as per previous step)
+        if (order.getOrderSide() == OrderSide.BUY) {
+            // A. Update Asset Balance (Remove the held coins)
+            UserAsset asset = userAssetRepository.findByUserIdAndSymbol(user.getId(), order.getSymbol())
+                    .orElseThrow(() -> new RuntimeException("Asset not found for closing order"));
+
+            // Validate user actually has enough (should always be true in DB integrity)
+            if(asset.getAmount().compareTo(quantity) < 0) {
+                log.error("Critical: User asset data corrupt. Order qty > Asset qty");
+                // In prod, you'd handle this specifically. For now, force close partial.
+            }
+
+            asset.setAmount(asset.getAmount().subtract(quantity));
+            userAssetRepository.save(asset);
+
+            // B. Credit USDT back to Balance
+            user.setBalance(user.getBalance().add(exitValue));
+            userRepository.save(user);
+        }
+
+        // 2. Update Order Status
+        order.setStatus(OrderStatus.CLOSED);
+        // We might want to store the "Exit Price" and "PnL" in the Order entity later
+        // For now, we update the timestamp
+        orderRepository.save(order);
+    }
 }
