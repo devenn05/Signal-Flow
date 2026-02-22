@@ -21,6 +21,7 @@ import reactor.core.scheduler.Schedulers;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 
 @Service
 @Slf4j
@@ -187,5 +188,43 @@ public class OrderServiceImpl implements OrderService {
         // We might want to store the "Exit Price" and "PnL" in the Order entity later
         // For now, we update the timestamp
         orderRepository.save(order);
+    }
+
+    @Override
+    @Transactional
+    public void executePendingOrder(Order order, BigDecimal fillPrice) {
+        log.info("Executing PENDING Limit Order: {} at price {}", order.getId(), fillPrice);
+
+        User user = order.getUser();
+        BigDecimal cost = fillPrice.multiply(order.getQuantity());
+
+        try {
+            // 1. Re-validate Balance / Assets
+            if (order.getOrderSide() == OrderSide.BUY) {
+                // Calls the helper we wrote earlier (Asset Swap Logic)
+                handleBuySide(user, order.getSymbol(), order.getQuantity(), cost, fillPrice);
+            } else {
+                handleSellSide(user, order.getSymbol(), order.getQuantity(), cost);
+            }
+
+            // 2. Update Order to FILLED
+            order.setStatus(OrderStatus.FILLED);
+            order.setEntryPrice(fillPrice); // Capture the actual fill price
+            order.setUpdatedAt(LocalDateTime.now());
+
+            // 3. Set Defaults for Auto-Monitor
+            if (order.isMoveSlToBreakEven()) {
+                order.setSlMovedToBreakEven(false);
+            }
+
+            orderRepository.save(order);
+            log.info("Limit Order {} filled successfully.", order.getId());
+
+        } catch (Exception e) {
+            log.error("Failed to execute limit order {}: {}", order.getId(), e.getMessage());
+            // If user spent their money elsewhere, CANCEL this order
+            order.setStatus(OrderStatus.CLOSED);
+            orderRepository.save(order);
+        }
     }
 }

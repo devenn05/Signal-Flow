@@ -10,4 +10,9 @@ public interface TradeMonitorService {
     void processSymbolGroup(String symbol, List<Order> orders);
     void evaluateRiskManagement(Order order, BigDecimal currentPrice);
     boolean checkTakeProfit(Order order, BigDecimal currentPrice);
+    void checkAllOrders();
+    void processActiveTrades();
+    void processPendingOrders();
+    void checkLimitMatch(Order order, BigDecimal currentPrice);
+
 }

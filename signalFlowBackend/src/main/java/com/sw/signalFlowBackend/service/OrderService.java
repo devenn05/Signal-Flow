@@ -10,4 +10,6 @@ public interface OrderService {
     Mono<Order> placeOrder(Long userId, OrderRequestDto orderDto);
 
     void closeOrder(Order order, BigDecimal closingPrice, String reason);
+
+    void executePendingOrder(Order order, BigDecimal fillPrice);
 }

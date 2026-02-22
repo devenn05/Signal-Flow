@@ -116,4 +116,61 @@ public class TradeMonitorServiceImpl implements TradeMonitorService {
         }
         return false;
     }
+
+    @Override
+    @Scheduled(fixedDelay = 3000)
+    public void checkAllOrders() { // Renamed from checkOpenPositions
+        // 1. Process ACTIVE (FILLED) trades (SL/TP)
+        processActiveTrades();
+
+        // 2. Process PENDING (LIMIT) trades
+        processPendingOrders();
+    }
+
+    @Override
+    public void processActiveTrades() {
+        List<Order> activeOrders = orderRepository.findByStatus(OrderStatus.FILLED);
+        if (activeOrders.isEmpty()) return;
+        // ... (Insert logic from previous step: group by symbol -> processSymbolGroup)
+        // (Ensure you call evaluateRiskManagement here)
+    }
+
+    @Override
+    public void processPendingOrders() {
+        List<Order> pendingOrders = orderRepository.findByStatus(OrderStatus.PENDING);
+        if (pendingOrders.isEmpty()) return;
+
+        Map<String, List<Order>> ordersBySymbol = pendingOrders.stream()
+                .collect(Collectors.groupingBy(Order::getSymbol));
+
+        ordersBySymbol.forEach((symbol, orders) -> {
+            priceService.getBestPrice(symbol)
+                    .subscribe(currentPrice -> {
+                        for (Order order : orders) {
+                            checkLimitMatch(order, currentPrice);
+                        }
+                    });
+        });
+    }
+
+    @Override
+    public void checkLimitMatch(Order order, BigDecimal currentPrice) {
+        BigDecimal targetPrice = order.getInputPrice(); // The Limit Price set by user
+
+        // BUY LIMIT: We want to buy CHEAP.
+        // Logic: Execute if Current Price <= Target Price
+        if (order.getOrderSide() == OrderSide.BUY) {
+            if (currentPrice.compareTo(targetPrice) <= 0) {
+                orderService.executePendingOrder(order, currentPrice);
+            }
+        }
+
+        // SELL LIMIT: We want to sell HIGH.
+        // Logic: Execute if Current Price >= Target Price
+        else if (order.getOrderSide() == OrderSide.SELL) {
+            if (currentPrice.compareTo(targetPrice) >= 0) {
+                orderService.executePendingOrder(order, currentPrice);
+            }
+        }
+    }
 }
